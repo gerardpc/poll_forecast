@@ -1,125 +1,149 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% nice_plot(xx, yy, x_label, y_label, t_title, varargin)
-%
-% Plot vectors nicely, in "journal" fashion
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% INPUTS:
-%           xx       -- x vector
-%           yy       -- y vector
-%           x_label  -- x axis label
-%           y_label  -- y axis label
-%           t_title  -- Plot title
-%           varargin -- color, linestyle, linewidth, optional inputs
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% GP Conangla, 7.2018
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+###########################################################################
+# electoral_calculus.py
+###########################################################################
+# Electoral calculus library.
+# Mostly designed for catalan and spanish elections, with plans to expand
+# to further countries.
+#
+# Observations:
+# Uses Python 3
+###########################################################################
+# GP Conangla, 06.2020
+###########################################################################
 
-function[] = nice_plot(xx, yy, x_label, y_label, t_title, varargin)
-
-%% Varargins
-% color specified?
-specify_color = find(ismember(varargin, 'color'));
-if(~isempty(specify_color))
-    color = varargin{specify_color + 1};
-else
-    Fig_num = get(gcf, 'Number');
-    current_count = get(Fig_num, 'UserData');
-    if isempty(current_count)
-        current_count = 6;
-    end
-    color_list = get(gca,'ColorOrder');
-    color = color_list(mod(current_count, 7) + 1, :);
-    current_count = current_count + 1;
-    set(Fig_num, 'UserData', current_count);
-end
-
-% linestyle specified?
-specify_linestyle = find(ismember(varargin, 'linestyle'));
-if(~isempty(specify_linestyle))
-    linestyle = varargin{specify_linestyle + 1};
-else
-    linestyle = '-';
-end
-
-% linewidth specified?
-specify_linewidth = find(ismember(varargin, 'linewidth'));
-if(~isempty(specify_linewidth))
-    linewidth = str2double(varargin{specify_linewidth + 1});
-else
-    linewidth = 2;
-end
-
-% linewidth specified?
-specify_size = find(ismember(varargin, 'size'));
-if(~isempty(specify_size))
-    marker_size = str2double(varargin{specify_size + 1});
-else
-    marker_size = 40;
-end
-
-%% Now plot
-% plot or scatter?
-plot_type = find(ismember(varargin, 'scatter'));
-if(~isempty(plot_type))
-    % Edge or not edge?
-    plot_type = find(ismember(varargin, 'edge'));
-    if(~isempty(plot_type))
-        scatter(xx, yy, marker_size, 'MarkerFaceColor', color, 'MarkerFaceAlpha', 1, 'MarkerEdgeColor', 'black');
-        hold on;
-    else
-        scatter(xx, yy, marker_size, 'MarkerFaceColor', color, 'MarkerFaceAlpha', 0.5, 'MarkerEdgeColor', 'none');
-        hold on;
-        area(xx, yy, 'EdgeAlpha', 0, 'FaceColor', color, 'FaceAlpha', 0.2);
-    end
-
-    % linestyle specified?
-    plot_type = find(ismember(varargin, 'semilogy'));
-    if(~isempty(plot_type))
-        set(gca, 'YScale', 'log');
-    end
-    plot_type = find(ismember(varargin, 'semilogx'));
-    if(~isempty(plot_type))
-        set(gca, 'XScale', 'log');
-    end
-    plot_type = find(ismember(varargin, 'loglog'));
-    if(~isempty(plot_type))
-        set(gca, 'XScale', 'log');
-        set(gca, 'YScale', 'log');
-    end
-else
-    plot(xx, yy, 'LineStyle', linestyle, 'color', color, 'LineWidth', linewidth);
-    hold on;
-    plot_type = find(ismember(varargin, 'semilogy'));
-    if(~isempty(plot_type))
-        set(gca, 'YScale', 'log');
-    end
-    plot_type = find(ismember(varargin, 'semilogx'));
-    if(~isempty(plot_type))
-        set(gca, 'XScale', 'log');
-    end
-    plot_type = find(ismember(varargin, 'loglog'));
-    if(~isempty(plot_type))
-        set(gca, 'XScale', 'log');
-        set(gca, 'YScale', 'log');
-    end
-end
-
-%% Nice labels, titles and sizes
-set(gca,'FontSize',18,'FontName', 'CMU Sans Serif');
-xlabel(x_label, 'fontsize', 24, 'FontName', 'CMU Sans Serif');
-ylabel(y_label, 'fontsize', 24, 'FontName', 'CMU Sans Serif');
-t_title = strrep(t_title, '_', ' '); % clean title string '_' -> ' '
-title(t_title);
-xlim([min(xx), max(xx)]);
-grid on;
-ax = gca;
-ax.GridAlpha = 0.3;
-box on;
-
-end
+import subprocess
+import os
+import pretty_errors
+import time
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import rcParams
+rcParams['text.usetex'] = True
+rcParams['text.latex.preamble'] = [r'\usepackage[cm]{sfmath}']
+rcParams['font.family'] = 'sans-serif'
+rcParams['font.sans-serif'] = 'cm'
 
 
-def nice_plot():
+# CLASS DEFINITIONS
+# provincia
+class provincia:
+    def __init__(self, name, n_seats, district_id):
+        self.name = name
+        self.district_id = district_id
+        self.n_seats = n_seats
 
-return
+
+# nice plot
+def nice_plot(xx, yy, x_label, y_label, plot_title, device):
+    # Initial checks/allocations
+    # Check if folder where img is going to be exists
+    if not os.path.exists(os.path.expanduser("~/home_status_web/plots")):
+        # if not, create it
+        os.makedirs(os.path.expanduser("~/home_status_web/plots"))
+        print("Created /plots folder.")
+    # Print information
+    print("Plotting data from " + device)
+    # Figure
+    fig0, ax = plt.subplots()
+    # Plot data
+    ax.plot(xx, yy)
+    # Add grid, labels, title, make pretty
+    ax.grid(True)
+    plt.xlabel(x_label, fontsize=18)
+    plt.ylabel(y_label, fontsize=18)
+    plt.title(plot_title, fontsize=18)
+    ax.set_xlim([min(xx), max(xx)])
+    delta_y = max(yy) - min(yy)
+    ax.set_ylim([min(yy) - delta_y*0.5, max(yy) + delta_y*0.5])
+    plt.ticklabel_format(style='plain', axis='x', scilimits=(0, 0))
+    plt.ticklabel_format(style='plain', axis='y', scilimits=(0, 0))
+    # Save plot as png
+    fig0.savefig(os.path.expanduser("~/home_status_web/plots/" + device +
+                                    ".svg"), format="svg")
+    return
+
+
+def import_votes_simple():
+    return
+
+
+# ar_votes = votes/(party*district),
+#           matrix of size n_parties x m, where m = number of districts (v)
+def filter_parties_threshold(threshold, n_parties, n_districts, ar_votes):
+    total_votes_district = sum(ar_votes, axis=0)
+    total_vd_expanded = np.matlib.repmat(total_votes_district, n_parties, 1)
+    vote_fraction = ar_votes/total_vd_expanded
+    ar_votes[vote_fraction < threshold] = 0
+    return
+
+
+# Calculate the d'Hondt table to distribute seats
+def create_dhondt_table(n_parties, district_number, n_seats, ar_votes):
+    district_votes = ar_votes[:, district_number]
+    vots_1 = np.matlib.repmat(district_votes, 1, n_seats)
+    dhondt_factor = np.matlib.repmat(np.linspace(1, n_seats, n_seats), n_parties, 1)
+    dhondt_table = vots_1/dhondt_factor
+    return dhondt_table
+
+
+# Assign seats given a d'Hondt table
+def assign_seats(n_parties, n_seats, dhondt_table):
+    ar_seats = np.zeros(n_parties)
+    for seat in range(1, n_seats):
+        max_val = np.amax(dhondt_table)
+        all_max_indices = np.argwhere(dhondt_table == max_val)
+        sit_index = all_max_indices[0, :]
+        dhondt_table[sit_index] = 0
+        ar_seats[sit_index[0]] = ar_seats[sit_index[0]] + 1
+    return
+
+
+# n_parties = number of n_parties
+# ar_votes = votes/(party*district),
+#           matrix of size n_parties x m, where m = number of districts (v)
+def seats_catalunya(n_parties, ar_votes):
+    # initial defs.
+    threshold = 0.03  # electoral threshold
+    ar_votes_original = np.copy(ar_votes)
+
+    # filter parties below threshold
+    filter_parties_below_thr(threshold, n_parties, n_districts, ar_votes)
+
+    # define provincies
+    p1 = provincia("barcelona", 1, 85)
+    p1 = provincia("girona", 2, 17)
+    p1 = provincia("tarragona", 3, 15)
+    p1 = provincia("lleida", 4, 18)
+
+    # Barcelona, 85 diputats
+    barcelona = provincia("kodi4", "192.168.1.130")
+    [taula_hondt] = calcula_taula(n_parties, n_districts, n_seats, ar_votes)
+
+    # assign seats
+    [v_diputats_circumscripcio] = assign_seats(n_parties, n_seats, taula_hondt)
+    v_diputats = v_diputats + v_diputats_circumscripcio
+
+    # Girona 17 diputats
+    [taula_hondt] = calcula_taula(n_parties, n_districts, n_seats, ar_votes)
+
+    # assign seats
+    [v_diputats_circumscripcio] = assign_seats(n_parties, n_seats, taula_hondt)
+    v_diputats = v_diputats + v_diputats_circumscripcio
+
+    # Lleida 15 diputats
+    [taula_hondt] = calcula_taula(n_parties, n_districts, n_seats, ar_votes)
+
+    # assign seats
+    [v_diputats_circumscripcio] = assign_seats(n_parties, n_seats, taula_hondt)
+    v_diputats = v_diputats + v_diputats_circumscripcio
+
+    # Tarragona 18 diputats
+    [taula_hondt] = calcula_taula(n_parties, n_districts, n_seats, ar_votes)
+
+    # assign seats
+    [v_diputats_circumscripcio] = assign_seats(n_parties, n_seats, taula_hondt)
+    v_diputats = v_diputats + v_diputats_circumscripcio
+
+    # Dibuixa els resultats en un grafic circular
+    pie(v_diputats)
+    return
