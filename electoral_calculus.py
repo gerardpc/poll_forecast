@@ -18,6 +18,7 @@ import time
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.matlib
 from matplotlib import rcParams
 rcParams['text.usetex'] = True
 rcParams['text.latex.preamble'] = [r'\usepackage[cm]{sfmath}']
@@ -28,7 +29,7 @@ rcParams['font.sans-serif'] = 'cm'
 # CLASS DEFINITIONS
 # provincia
 class provincia:
-    def __init__(self, name, n_seats, district_id):
+    def __init__(self, name, district_id, n_seats):
         self.name = name
         self.district_id = district_id
         self.n_seats = n_seats
@@ -67,7 +68,7 @@ def nice_plot(xx, yy, x_label, y_label, plot_title, device):
 # import election results of a district from a .txt file in ./electoral_data
 def import_votes_simple(provincia, year):
     d_frame = pd.read_csv(os.path.expanduser("~/poll_forecast/electoral_data/" +
-                                          provincia.name + "_" + str(year) + ".txt"), header=None)
+                                             provincia.name + "_" + str(year) + ".txt"))
     # parties = ar_votes[:, 0]
     # num_votes = np.asarray(trace[:, 1])
     # print("Imported votes from " + provincia.name + ", year " + str(year))
@@ -79,10 +80,19 @@ def import_votes_catalunya():
     return
 
 
+# merge more than 2 pandas dataframes by "key"
+def merge_multiple_df(df_list, key):
+    current_df = df_list[0]
+    for i in range(0, len(df_list)-1):
+        current_df = pd.merge(current_df, df_list[i+1], on=key)
+    return current_df
+
+
 # ar_votes = votes/(party*district),
 #           matrix of size n_parties x m, where m = number of districts (v)
-def filter_parties_threshold(threshold, n_parties, n_districts, ar_votes):
-    total_votes_district = sum(ar_votes, axis=0)
+def filter_parties_threshold(threshold, ar_votes):
+    n_parties = len(ar_votes)
+    total_votes_district = np.sum(ar_votes, axis=0)
     total_vd_expanded = np.matlib.repmat(total_votes_district, n_parties, 1)
     vote_fraction = ar_votes/total_vd_expanded
     ar_votes[vote_fraction < threshold] = 0
@@ -90,44 +100,60 @@ def filter_parties_threshold(threshold, n_parties, n_districts, ar_votes):
 
 
 # Calculate the d'Hondt table to distribute seats
-def create_dhondt_table(n_parties, district_number, n_seats, ar_votes):
-    district_votes = ar_votes[:, district_number]
-    vots_1 = np.matlib.repmat(district_votes, 1, n_seats)
-    dhondt_factor = np.matlib.repmat(np.linspace(1, n_seats, n_seats), n_parties, 1)
+def create_dhondt_table(n_seats, provincia, ar_votes):
+    n_parties = len(ar_votes)
+    district_votes = ar_votes[:, provincia.district_id]
+    district_votes.shape = (n_parties, 1)
+    vots_1 = np.tile(district_votes, (1, n_seats))
+    dhondt_factor = np.tile(np.linspace(1, n_seats, n_seats), (n_parties, 1))
     dhondt_table = vots_1/dhondt_factor
     return dhondt_table
 
 
 # Assign seats given a d'Hondt table
-def assign_seats(n_parties, n_seats, dhondt_table):
+def assign_seats(n_seats, dhondt_table):
+    n_parties = len(dhondt_table)
     ar_seats = np.zeros(n_parties)
-    for seat in range(1, n_seats):
+    for seat in range(0, n_seats):
         max_val = np.amax(dhondt_table)
-        all_max_indices = np.argwhere(dhondt_table == max_val)
-        sit_index = all_max_indices[0, :]
-        dhondt_table[sit_index] = 0
-        ar_seats[sit_index[0]] = ar_seats[sit_index[0]] + 1
-    return
+        # print(max_val)
+        max_indices = np.argwhere(dhondt_table == max_val)
+        seat_index = max_indices[0]
+        dhondt_table[seat_index[0], seat_index[1]] = 0
+        ar_seats[seat_index[0]] = ar_seats[seat_index[0]] + 1
+    return ar_seats
 
 
 # n_parties = number of n_parties
 # ar_votes = votes/(party*district),
 #           matrix of size n_parties x m, where m = number of districts (v)
-def seats_catalunya(n_parties, ar_votes):
-    # initial defs.
-    threshold = 0.03  # electoral threshold
-    ar_votes_original = np.copy(ar_votes)
-    import_votes_simple()
-    filter_parties_threshold(threshold, n_parties, n_districts, ar_votes)
-    dhondt_table = create_dhondt_table(n_parties, district_number, n_seats, ar_votes)
-    assign_seats(n_parties, n_seats, dhondt_table)
-
+def seats_catalunya():
+    # INITIAL DEFINITIONS
+    # number of sits in parliament
+    n_seats = 135
+    # electoral threshold
+    threshold = 0.03
     # define provincies
-    p1 = provincia("barcelona", 1, 85)
-    p2 = provincia("girona", 2, 17)
-    p3 = provincia("tarragona", 3, 15)
-    p4 = provincia("lleida", 4, 18)
+    p1 = provincia("barcelona", 0, 85)
+    p2 = provincia("girona", 1, 17)
+    p3 = provincia("tarragona", 2, 15)
+    p4 = provincia("lleida", 3, 18)
+    # import votes from txt file
+    df_1 = import_votes_simple(p1, 2017)
+    df_2 = import_votes_simple(p2, 2017)
+    df_3 = import_votes_simple(p3, 2017)
+    df_4 = import_votes_simple(p4, 2017)
+    # merge vote dataframes
+    df_all = merge_multiple_df([df_1, df_2, df_3, df_4], "party")
+    # extract votes column as np array
+    ar_votes = df_all.loc[:, df_all.columns != 'party'].to_numpy()
 
-    # Dibuixa els resultats en un grafic circular
-    pie(v_diputats)
+    # CALCULATE SEATS .to_numpy()
+    filter_parties_threshold(threshold, ar_votes)
+    dhondt_table = create_dhondt_table(n_seats, p2, ar_votes)
+    ar_seats = assign_seats(p2.n_seats, dhondt_table)
+    print(ar_seats)
+    #
+    # # Dibuixa els resultats en un grafic circular
+    # pie(v_diputats)
     return
