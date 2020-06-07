@@ -15,6 +15,7 @@ import subprocess
 import os
 import pretty_errors
 import time
+import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import rcParams
@@ -63,7 +64,18 @@ def nice_plot(xx, yy, x_label, y_label, plot_title, device):
     return
 
 
-def import_votes_simple():
+# import election results of a district from a .txt file in ./electoral_data
+def import_votes_simple(provincia, year):
+    d_frame = pd.read_csv(os.path.expanduser("~/poll_forecast/electoral_data/" +
+                                          provincia.name + "_" + str(year) + ".txt"), header=None)
+    # parties = ar_votes[:, 0]
+    # num_votes = np.asarray(trace[:, 1])
+    # print("Imported votes from " + provincia.name + ", year " + str(year))
+    return d_frame
+
+
+# import and join all electoral results from Catalunya
+def import_votes_catalunya():
     return
 
 
@@ -105,44 +117,16 @@ def seats_catalunya(n_parties, ar_votes):
     # initial defs.
     threshold = 0.03  # electoral threshold
     ar_votes_original = np.copy(ar_votes)
-
-    # filter parties below threshold
-    filter_parties_below_thr(threshold, n_parties, n_districts, ar_votes)
+    import_votes_simple()
+    filter_parties_threshold(threshold, n_parties, n_districts, ar_votes)
+    dhondt_table = create_dhondt_table(n_parties, district_number, n_seats, ar_votes)
+    assign_seats(n_parties, n_seats, dhondt_table)
 
     # define provincies
     p1 = provincia("barcelona", 1, 85)
-    p1 = provincia("girona", 2, 17)
-    p1 = provincia("tarragona", 3, 15)
-    p1 = provincia("lleida", 4, 18)
-
-    # Barcelona, 85 diputats
-    barcelona = provincia("kodi4", "192.168.1.130")
-    [taula_hondt] = calcula_taula(n_parties, n_districts, n_seats, ar_votes)
-
-    # assign seats
-    [v_diputats_circumscripcio] = assign_seats(n_parties, n_seats, taula_hondt)
-    v_diputats = v_diputats + v_diputats_circumscripcio
-
-    # Girona 17 diputats
-    [taula_hondt] = calcula_taula(n_parties, n_districts, n_seats, ar_votes)
-
-    # assign seats
-    [v_diputats_circumscripcio] = assign_seats(n_parties, n_seats, taula_hondt)
-    v_diputats = v_diputats + v_diputats_circumscripcio
-
-    # Lleida 15 diputats
-    [taula_hondt] = calcula_taula(n_parties, n_districts, n_seats, ar_votes)
-
-    # assign seats
-    [v_diputats_circumscripcio] = assign_seats(n_parties, n_seats, taula_hondt)
-    v_diputats = v_diputats + v_diputats_circumscripcio
-
-    # Tarragona 18 diputats
-    [taula_hondt] = calcula_taula(n_parties, n_districts, n_seats, ar_votes)
-
-    # assign seats
-    [v_diputats_circumscripcio] = assign_seats(n_parties, n_seats, taula_hondt)
-    v_diputats = v_diputats + v_diputats_circumscripcio
+    p2 = provincia("girona", 2, 17)
+    p3 = provincia("tarragona", 3, 15)
+    p4 = provincia("lleida", 4, 18)
 
     # Dibuixa els resultats en un grafic circular
     pie(v_diputats)
