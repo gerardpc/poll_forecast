@@ -11,11 +11,10 @@
 # GP Conangla, 06.2020
 ###########################################################################
 
-import subprocess
 import os
 import pretty_errors
-import time
 import pandas as pd
+# to check: https://geopandas.org/
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.matlib
@@ -35,13 +34,13 @@ class provincia:
         self.n_seats = n_seats
 
 
-# nice plot
+# nice standard XY plot
 def nice_plot(xx, yy, x_label, y_label, plot_title, device):
     # Initial checks/allocations
     # Check if folder where img is going to be exists
-    if not os.path.exists(os.path.expanduser("~/home_status_web/plots")):
+    if not os.path.exists(os.path.expanduser("~/poll_forecast/plots")):
         # if not, create it
-        os.makedirs(os.path.expanduser("~/home_status_web/plots"))
+        os.makedirs(os.path.expanduser("~/poll_forecast/plots"))
         print("Created /plots folder.")
     # Print information
     print("Plotting data from " + device)
@@ -59,19 +58,67 @@ def nice_plot(xx, yy, x_label, y_label, plot_title, device):
     ax.set_ylim([min(yy) - delta_y*0.5, max(yy) + delta_y*0.5])
     plt.ticklabel_format(style='plain', axis='x', scilimits=(0, 0))
     plt.ticklabel_format(style='plain', axis='y', scilimits=(0, 0))
-    # Save plot as png
-    fig0.savefig(os.path.expanduser("~/home_status_web/plots/" + device +
+    # Show plot
+    plt.show()
+    # Save plot
+    fig0.savefig(os.path.expanduser("~/poll_forecast/plots/" + device +
                                     ".svg"), format="svg")
     return
 
 
-# import election results of a district from a .txt file in ./electoral_data
+# Party color definitions
+def party_color(parties):
+    dict_color_party = {
+        "C's": "orangered",
+        "ERC": "orange",
+        "JUNTSxCAT": "darkblue",
+        "PSOE": "red",
+        "CatComú-Podem": "violet",
+        "CUP": "yellow",
+        "PP": "deepskyblue",
+        "PACMA": "yellowgreen",
+        "RECORTES CERO-ELS VERDS": "forestgreen",
+        "Por un Mundo más Justo": "grey"
+    }
+    return dict_color_party
+
+
+# Custom function to plot parliament charts
+def parliament_chart(parties, seats, plot_title):
+    # Initial checks/allocations
+    # Check if folder where img is going to be exists
+    if not os.path.exists(os.path.expanduser("~/poll_forecast/plots")):
+        # if not, create it
+        os.makedirs(os.path.expanduser("~/poll_forecast/plots"))
+        print("Created /plots folder.")
+    # delete parties with zero seats from plot
+    total_seats = sum(seats)
+    index_zero = np.argwhere(seats < 1)
+    parties = np.delete(parties, index_zero)
+    seats = np.delete(seats, index_zero)
+    # rescale seats to reduce the pie to parliament size (i.e. half pie)
+    seats = seats/(2*total_seats)
+    # Figure
+    fig0, ax = plt.subplots()
+    plt.title(plot_title, fontsize=18)
+    # Get party colors
+    dict_color = party_color(parties)
+    color_pie = [dict_color.get(key) for key in parties]
+    # Plot
+    plt.pie(seats, counterclock=False, labels=parties, colors=color_pie, autopct=lambda p: '{:.0f}'.format(p*2*total_seats/100),
+            wedgeprops=dict(width=0.7), shadow=False, startangle=180)
+    plt.axis('equal')
+    # Show plot
+    plt.show()
+    # Save plot
+    fig0.savefig(os.path.expanduser("~/poll_forecast/plots/fig0.svg"), format="svg")
+    return
+
+
+# import election results of district from a .txt file in ./electoral_data
 def import_votes_simple(provincia, year):
     d_frame = pd.read_csv(os.path.expanduser("~/poll_forecast/electoral_data/" +
                                              provincia.name + "_" + str(year) + ".txt"))
-    # parties = ar_votes[:, 0]
-    # num_votes = np.asarray(trace[:, 1])
-    # print("Imported votes from " + provincia.name + ", year " + str(year))
     return d_frame
 
 
@@ -88,8 +135,7 @@ def merge_multiple_df(df_list, key):
     return current_df
 
 
-# ar_votes = votes/(party*district),
-#           matrix of size n_parties x m, where m = number of districts (v)
+# filter parties below threshold (i.e. they get no seats)
 def filter_parties_threshold(threshold, ar_votes):
     n_parties = len(ar_votes)
     total_votes_district = np.sum(ar_votes, axis=0)
@@ -131,14 +177,17 @@ def seats_catalunya():
     # INITIAL DEFINITIONS
     # number of sits in parliament
     n_seats = 135
-    # electoral threshold
+    # electoral threshold (below this % you get no seats)
     threshold = 0.03
     # define provincies
     p1 = provincia("barcelona", 0, 85)
     p2 = provincia("girona", 1, 17)
-    p3 = provincia("tarragona", 2, 15)
-    p4 = provincia("lleida", 3, 18)
-    # import votes from txt file
+    p3 = provincia("lleida", 2, 15)
+    p4 = provincia("tarragona", 3, 18)
+    prov_list = [p1, p2, p3, p4]
+
+    # IMPORT VOTES
+    # get data from txt file
     df_1 = import_votes_simple(p1, 2017)
     df_2 = import_votes_simple(p2, 2017)
     df_3 = import_votes_simple(p3, 2017)
@@ -147,13 +196,18 @@ def seats_catalunya():
     df_all = merge_multiple_df([df_1, df_2, df_3, df_4], "party")
     # extract votes column as np array
     ar_votes = df_all.loc[:, df_all.columns != 'party'].to_numpy()
+    n_parties = len(ar_votes)
+    df_parties = df_all.loc[:, df_all.columns == 'party'].values
 
-    # CALCULATE SEATS .to_numpy()
+    # CALCULATE SEATS
     filter_parties_threshold(threshold, ar_votes)
-    dhondt_table = create_dhondt_table(n_seats, p2, ar_votes)
-    ar_seats = assign_seats(p2.n_seats, dhondt_table)
-    print(ar_seats)
-    #
-    # # Dibuixa els resultats en un grafic circular
-    # pie(v_diputats)
+    total_seats = np.zeros(n_parties)
+    for p_i in prov_list:
+        dhondt_table = create_dhondt_table(n_seats, p_i, ar_votes)
+        ar_seats = assign_seats(p_i.n_seats, dhondt_table)
+        total_seats = total_seats + ar_seats
+
+    # PLOT RESULTS
+    # In parliament chart
+    parliament_chart(df_parties, total_seats, "Eleccions parlament 2017")
     return
