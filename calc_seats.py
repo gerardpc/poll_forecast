@@ -1,4 +1,4 @@
-# script for testing
+# script for testing electoral_calculus
 
 import electoral_calculus as ec
 
